@@ -45,6 +45,12 @@ if ($error) {
 $code = required_param('code', PARAM_RAW);
 // The state parameter we've given (used in moodle as a redirect url).
 $state = required_param('state', PARAM_LOCALURL);
+$sessKey = optional_param('amp;amp;sesskey', '', PARAM_RAW);
+$oaid = optional_param('amp;amp;id', '', PARAM_RAW);
+
+if ($sessKey) {
+    $state = $state . '&sesskey='. $sessKey . '&id=' . $oaid;
+}
 
 $redirecturl = new moodle_url($state);
 $params = $redirecturl->params();
