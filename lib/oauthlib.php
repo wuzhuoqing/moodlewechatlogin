@@ -405,6 +405,10 @@ abstract class oauth2_client extends curl {
     private static $upgradedcodes = [];
     /** @var bool basicauth */
     protected $basicauth = false;
+    /** @var bool isWechat */
+    protected $isWechat = false;
+    /** @var string $openid wechat openid string */
+    protected $openid = '';
 
     /**
      * Returns the auth url for OAuth 2.0 request
@@ -432,6 +436,8 @@ abstract class oauth2_client extends curl {
         $this->clientsecret = $clientsecret;
         $this->returnurl = $returnurl;
         $this->scope = $scope;
+        $this->isWechat = (substr($this->token_url(), 0, 25) === 'https://api.weixin.qq.com') ? true : false;
+        $this->openid = '';
         $this->accesstoken = $this->get_stored_token();
     }
 
@@ -450,7 +456,7 @@ abstract class oauth2_client extends curl {
         }
 
         // We have a token so we are logged in.
-        if (isset($this->accesstoken->token)) {
+        if ((!$this->isWechat || $this->openid) && isset($this->accesstoken->token)) {
             // Check that the access token has all the requested scopes.
             $scopemissing = false;
             $scopecheck = ' ' . $this->accesstoken->scope . ' ';
@@ -552,8 +558,13 @@ abstract class oauth2_client extends curl {
             $idsecret = urlencode($this->clientid) . ':' . urlencode($this->clientsecret);
             $this->setHeader('Authorization: Basic ' . base64_encode($idsecret));
         } else {
-            $params['client_id'] = $this->clientid;
-            $params['client_secret'] = $this->clientsecret;
+            if ($this->isWechat) {
+                $params['appid'] = $this->clientid;
+                $params['secret'] = $this->clientsecret;
+            } else {
+                $params['client_id'] = $this->clientid;
+                $params['client_secret'] = $this->clientsecret;
+            }
         }
 
         // Requests can either use http GET or POST.
@@ -583,6 +594,10 @@ abstract class oauth2_client extends curl {
 
         if (isset($r->refresh_token)) {
             $this->refreshtoken = $r->refresh_token;
+        }
+
+        if (isset($r->openid)) {
+            $this->openid = $r->openid;
         }
 
         // Store the token an expiry time.
@@ -622,6 +637,9 @@ abstract class oauth2_client extends curl {
             if ($this->use_http_get()) {
                 // If using HTTP GET add as a parameter.
                 $murl->param('access_token', $this->accesstoken->token);
+                if ($this->openid) {
+                    $murl->param('openid', $this->openid);
+                }
             } else {
                 $this->setHeader('Authorization: Bearer '.$this->accesstoken->token);
             }
@@ -753,6 +771,7 @@ abstract class oauth2_client extends curl {
      * @return bool true if GET should be used
      */
     protected function use_http_get() {
-        return false;
+        return $this->isWechat || false;
     }
 }
+
